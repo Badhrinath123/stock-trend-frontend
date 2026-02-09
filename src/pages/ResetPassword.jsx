@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldAlert, Send, Key, CheckCircle2, ArrowLeft, Loader2, User, Lock } from 'lucide-react';
+import { ShieldAlert, Send, Key, CheckCircle2, ArrowLeft, Loader2, User, Lock, ShieldCheck } from 'lucide-react';
 import { ANIMATIONS } from '../DesignTokens';
 
 const ResetPassword = () => {
