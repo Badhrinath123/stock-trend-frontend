@@ -17,6 +17,7 @@ const Dashboard = () => {
     const [selectedCategory, setSelectedCategory] = useState("Banking & Finance");
     const [marketHistory, setMarketHistory] = useState([]);
     const [selectedStock, setSelectedStock] = useState({ symbol: "^NSEI", name: "NIFTY 50" });
+    const [selectedPeriod, setSelectedPeriod] = useState("1mo");
     const [marketSentiment, setMarketSentiment] = useState({ sentiment: "Neutral", confidence: 0, vix: 0, nifty_price: 0 });
     const [loading, setLoading] = useState(true);
 
@@ -24,7 +25,7 @@ const Dashboard = () => {
     useEffect(() => {
         const loadInitialData = async () => {
             setLoading(true);
-            await Promise.all([fetchWatchlist(), fetchPopularStocks(), fetchMarketHistory(selectedStock.symbol), fetchMarketSentiment()]);
+            await Promise.all([fetchWatchlist(), fetchPopularStocks(), fetchMarketHistory(selectedStock.symbol, selectedPeriod), fetchMarketSentiment()]);
             setLoading(false);
         };
 
@@ -32,14 +33,14 @@ const Dashboard = () => {
 
         const interval = setInterval(() => {
             fetchPopularStocks();
-            fetchMarketHistory(selectedStock.symbol);
+            fetchMarketHistory(selectedStock.symbol, selectedPeriod);
             fetchMarketSentiment();
         }, 30000); // 30 seconds
 
         return () => clearInterval(interval);
-    }, [selectedStock]);
+    }, [selectedStock, selectedPeriod]);
 
-    const fetchMarketHistory = async (symbol) => {
+    const fetchMarketHistory = async (symbol, period = selectedPeriod) => {
         try {
             // Default to selectedStock if no symbol provided (for polling)
             const target = symbol || selectedStock.symbol;
@@ -47,7 +48,7 @@ const Dashboard = () => {
             // Ensure we don't pass undefined.
             if (!target) return;
 
-            const res = await api.get(`/market/history/${encodeURIComponent(target)}`);
+            const res = await api.get(`/market/history/${encodeURIComponent(target)}?period=${period}`);
             setMarketHistory(res.data);
         } catch (err) {
             console.error("Failed to fetch market history", err);
@@ -174,7 +175,21 @@ const Dashboard = () => {
                                     Reset to NIFTY
                                 </button>
                             )}
-                            <span className="px-3 py-1 bg-accent/10 text-accent rounded-full text-[10px] font-bold uppercase tracking-wider border border-accent/20">30D History</span>
+
+                            <div className="flex bg-white/5 p-1 rounded-full border border-white/5">
+                                {["1d", "5d", "1mo", "6mo", "1y"].map((p) => (
+                                    <button
+                                        key={p}
+                                        onClick={() => setSelectedPeriod(p)}
+                                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all ${selectedPeriod === p
+                                                ? 'bg-accent text-primary shadow-sm'
+                                                : 'text-slate-500 hover:text-white'
+                                            }`}
+                                    >
+                                        {p === "1mo" ? "1M" : p === "6mo" ? "6M" : p.toUpperCase()}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
 
@@ -192,10 +207,6 @@ const Dashboard = () => {
                                     dataKey="date"
                                     stroke="#475569"
                                     style={{ fontSize: '10px', fontWeight: 'bold' }}
-                                    tickFormatter={(str) => {
-                                        const d = new Date(str);
-                                        return `${d.getDate()}/${d.getMonth() + 1}`;
-                                    }}
                                     axisLine={false}
                                     tickLine={false}
                                 />
