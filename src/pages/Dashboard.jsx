@@ -2,8 +2,9 @@ import React, { useState, useEffect, useContext } from 'react';
 import api from '../api';
 import AuthContext from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, TrendingUp, TrendingDown, Trash2, Globe, AlertCircle, BarChart3, Info, Zap, ShieldCheck } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Trash2, Globe, AlertCircle, BarChart3, Zap, ShieldCheck } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { toast } from 'react-hot-toast';
 import { ANIMATIONS } from '../DesignTokens';
 
 const Dashboard = () => {
@@ -15,13 +16,15 @@ const Dashboard = () => {
     const [popularStocksData, setPopularStocksData] = useState({});
     const [selectedCategory, setSelectedCategory] = useState("Banking & Finance");
     const [marketHistory, setMarketHistory] = useState([]);
+    const [selectedStock, setSelectedStock] = useState({ symbol: "^NSEI", name: "NIFTY 50" });
+    const [marketSentiment, setMarketSentiment] = useState({ sentiment: "Neutral", confidence: 0, vix: 0, nifty_price: 0 });
     const [loading, setLoading] = useState(true);
 
     // Polling for real-time updates
     useEffect(() => {
         const loadInitialData = async () => {
             setLoading(true);
-            await Promise.all([fetchWatchlist(), fetchPopularStocks(), fetchMarketHistory()]);
+            await Promise.all([fetchWatchlist(), fetchPopularStocks(), fetchMarketHistory(selectedStock.symbol), fetchMarketSentiment()]);
             setLoading(false);
         };
 
@@ -29,18 +32,34 @@ const Dashboard = () => {
 
         const interval = setInterval(() => {
             fetchPopularStocks();
-            fetchMarketHistory();
+            fetchMarketHistory(selectedStock.symbol);
+            fetchMarketSentiment();
         }, 30000); // 30 seconds
 
         return () => clearInterval(interval);
-    }, []);
+    }, [selectedStock]);
 
-    const fetchMarketHistory = async () => {
+    const fetchMarketHistory = async (symbol) => {
         try {
-            const res = await api.get('/market/history/^NSEI');
+            // Default to selectedStock if no symbol provided (for polling)
+            const target = symbol || selectedStock.symbol;
+            // Handle special encoded symbols if needed, but usually the backend handles it.
+            // Ensure we don't pass undefined.
+            if (!target) return;
+
+            const res = await api.get(`/market/history/${encodeURIComponent(target)}`);
             setMarketHistory(res.data);
         } catch (err) {
             console.error("Failed to fetch market history", err);
+        }
+    };
+
+    const fetchMarketSentiment = async () => {
+        try {
+            const res = await api.get('/market/sentiment');
+            setMarketSentiment(res.data);
+        } catch (err) {
+            console.error("Failed to fetch market sentiment", err);
         }
     };
 
@@ -76,7 +95,7 @@ const Dashboard = () => {
         } catch (err) {
             console.error("Failed to add stock", err);
             const msg = err.response?.data?.detail || "Failed to add stock. Please check the symbol.";
-            alert(msg);
+            toast.error(msg);
         }
     };
 
@@ -115,9 +134,7 @@ const Dashboard = () => {
                     <h1 className="text-3xl md:text-5xl font-black text-white tracking-tight mb-2">
                         Financial <span className="text-accent">Overview</span>
                     </h1>
-                    <p className="text-slate-400 text-sm md:text-base max-w-md">
-                        Real-time AI-powered trend analysis for your selected assets and global indices.
-                    </p>
+
                 </div>
 
                 <div className="flex items-center gap-4 bg-secondary/30 backdrop-blur-xl px-4 py-2 rounded-2xl border border-white/5 shadow-inner">
@@ -126,7 +143,7 @@ const Dashboard = () => {
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
                         </span>
-                        <span className="text-xs font-black text-green-400 uppercase tracking-widest">Live Engine</span>
+                        <span className="text-xs font-black text-green-400 uppercase tracking-widest">Live</span>
                     </div>
                     <div className="w-px h-4 bg-white/10" />
                     <span className="text-[10px] font-mono text-slate-500">{new Date().toLocaleTimeString()}</span>
@@ -144,11 +161,19 @@ const Dashboard = () => {
                         <div>
                             <h2 className="text-xl font-bold flex items-center gap-2">
                                 <BarChart3 className="text-accent" size={20} />
-                                Benchmark Analytics
+                                {selectedStock.name}
                             </h2>
-                            <p className="text-xs text-slate-500 mt-1">NIFTY 50 Index performance overview</p>
+                            <p className="text-xs text-slate-500 mt-1">{selectedStock.symbol} performance overview</p>
                         </div>
                         <div className="flex gap-2">
+                            {selectedStock.symbol !== "^NSEI" && (
+                                <button
+                                    onClick={() => setSelectedStock({ symbol: "^NSEI", name: "NIFTY 50" })}
+                                    className="px-3 py-1 bg-white/5 text-slate-400 rounded-full text-[10px] font-bold uppercase tracking-wider hover:bg-white/10 hover:text-white transition-colors"
+                                >
+                                    Reset to NIFTY
+                                </button>
+                            )}
                             <span className="px-3 py-1 bg-accent/10 text-accent rounded-full text-[10px] font-bold uppercase tracking-wider border border-accent/20">30D History</span>
                         </div>
                     </div>
@@ -209,41 +234,36 @@ const Dashboard = () => {
 
                     <div className="space-y-6 flex-1">
                         <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-xs text-slate-400">Market Sentiment</span>
-                                <span className="text-xs font-bold text-green-400">Moderately Bullish</span>
-                            </div>
-                            <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                                <motion.div
-                                    initial={{ width: 0 }}
-                                    animate={{ width: '65%' }}
-                                    className="h-full bg-green-500"
-                                />
-                            </div>
+                            <span className={`text-xs font-bold ${marketSentiment.sentiment === "Bullish" ? "text-green-400" : (marketSentiment.sentiment === "Bearish" ? "text-red-400" : "text-slate-400")}`}>
+                                {marketSentiment.sentiment}
+                            </span>
                         </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                                <span className="text-[10px] text-slate-500 block mb-1">Volatilty Index</span>
-                                <span className="text-lg font-black font-mono">14.2</span>
-                            </div>
-                            <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
-                                <span className="text-[10px] text-slate-500 block mb-1">AI Confidence</span>
-                                <span className="text-lg font-black font-mono">82%</span>
-                            </div>
-                        </div>
-
-                        <div className="p-4 rounded-2xl bg-accent/10 border border-accent/20 flex gap-3 items-start">
-                            <Info className="text-accent shrink-0" size={16} />
-                            <p className="text-[10px] leading-relaxed text-accent font-medium">
-                                AI engine predicts a continued upward momentum for Indian Top-50 in the next session based on volume accumulation.
-                            </p>
+                        <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <motion.div
+                                initial={{ width: 0 }}
+                                animate={{ width: `${marketSentiment.confidence}%` }}
+                                className={`h-full ${marketSentiment.sentiment === "Bullish" ? "bg-green-500" : (marketSentiment.sentiment === "Bearish" ? "bg-red-500" : "bg-slate-500")}`}
+                            />
                         </div>
                     </div>
 
-                    <button className="mt-8 w-full py-4 bg-white text-primary rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-accent hover:text-white transition-all">
-                        Upgrade Intelligence
-                    </button>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                            <span className="text-[10px] text-slate-500 block mb-1">Volatilty Index</span>
+                            <span className="text-lg font-black font-mono">{marketSentiment.vix}</span>
+                        </div>
+                        <div className="bg-white/5 rounded-2xl p-4 border border-white/5">
+                            <span className="text-[10px] text-slate-500 block mb-1">AI Confidence</span>
+                            <span className="text-lg font-black font-mono">{marketSentiment.confidence}%</span>
+                        </div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-accent/10 border border-accent/20 flex gap-3 items-start mt-4">
+                        <ShieldCheck className="text-accent shrink-0" size={16} />
+                        <p className="text-[10px] leading-relaxed text-accent font-medium">
+                            NIFTY 50 is currently trading at ₹{marketSentiment.nifty_price}. AI suggests a {marketSentiment.sentiment.toLowerCase()} trend.
+                        </p>
+                    </div>
                 </motion.div>
             </div>
 
@@ -275,26 +295,33 @@ const Dashboard = () => {
                     </form>
                 </div>
 
-                {watchlist.length === 0 ? (
-                    <motion.div
-                        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                        className="text-center py-24 glass rounded-[40px] border-dashed border-white/10"
-                    >
-                        <div className="bg-white/5 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <Plus className="text-slate-500" size={32} />
+                {
+                    watchlist.length === 0 ? (
+                        <motion.div
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                            className="text-center py-24 glass rounded-[40px] border-dashed border-white/10"
+                        >
+                            <div className="bg-white/5 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <Plus className="text-slate-500" size={32} />
+                            </div>
+                            <p className="text-slate-400 font-bold">Watchlist Empty</p>
+                            <p className="text-slate-600 text-xs mt-2">Add a ticker above to begin AI monitoring.</p>
+                        </motion.div>
+                    ) : (
+                        <div className="responsive-grid">
+                            <AnimatePresence mode="popLayout">
+                                {watchlist.map((stock) => (
+                                    <div key={stock.id} onClick={() => {
+                                        setSelectedStock({ symbol: stock.symbol, name: stock.company_name });
+                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                    }} className="cursor-pointer">
+                                        <StockCard stock={stock} onDelete={() => handleDeleteStock(stock.symbol)} />
+                                    </div>
+                                ))}
+                            </AnimatePresence>
                         </div>
-                        <p className="text-slate-400 font-bold">Watchlist Empty</p>
-                        <p className="text-slate-600 text-xs mt-2">Add a ticker above to begin AI monitoring.</p>
-                    </motion.div>
-                ) : (
-                    <div className="responsive-grid">
-                        <AnimatePresence mode="popLayout">
-                            {watchlist.map((stock) => (
-                                <StockCard key={stock.id} stock={stock} onDelete={() => handleDeleteStock(stock.symbol)} />
-                            ))}
-                        </AnimatePresence>
-                    </div>
-                )}
+                    )
+                }
             </div>
 
             {/* Catalog Section */}
@@ -327,7 +354,11 @@ const Dashboard = () => {
                             layout
                             key={stock.symbol}
                             className="glass p-5 rounded-[2rem] border-white/5 hover:border-accent/40 transition-all flex justify-between items-center group cursor-pointer"
-                            onClick={() => { setNewStockSymbol(stock.symbol); }}
+                            onClick={() => {
+                                setSelectedStock({ symbol: stock.symbol, name: stock.company_name });
+                                setNewStockSymbol(stock.symbol); // Also pre-fill the track input
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
                         >
                             <div className="flex items-center gap-4">
                                 <div className="bg-white/5 p-3 rounded-2xl group-hover:bg-accent/10 transition-colors">
@@ -349,8 +380,8 @@ const Dashboard = () => {
                 </div>
             </motion.div>
         </div>
-    )
-}
+    );
+};
 
 const StockCard = ({ stock, onDelete }) => {
     const [predictionData, setPredictionData] = useState(null);

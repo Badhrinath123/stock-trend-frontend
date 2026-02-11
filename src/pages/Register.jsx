@@ -4,6 +4,7 @@ import AuthContext from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { GoogleLogin } from '@react-oauth/google';
 import { TrendingUp, Mail, Lock, User, Sparkles, ShieldCheck } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { ANIMATIONS } from '../DesignTokens';
 
 const Register = () => {
@@ -18,6 +19,7 @@ const Register = () => {
         e.preventDefault();
         try {
             await register(username, password, email);
+            toast.success('Registration successful! Please login.');
             navigate('/login');
         } catch (err) {
             setError('Registration failed. Username or email might be taken.');
@@ -27,9 +29,11 @@ const Register = () => {
     const handleGoogleSuccess = async (credentialResponse) => {
         try {
             await loginWithGoogle(credentialResponse.credential);
+            toast.success('Google sign up successful');
             navigate('/');
         } catch (err) {
             setError('Google sign up failed');
+            toast.error('Google sign up failed');
         }
     };
 

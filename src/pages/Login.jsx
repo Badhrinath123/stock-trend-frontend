@@ -4,6 +4,7 @@ import AuthContext from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { GoogleLogin } from '@react-oauth/google';
 import { TrendingUp, Lock, User, ArrowRight, ShieldCheck } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { ANIMATIONS } from '../DesignTokens';
 
 const Login = () => {
@@ -17,6 +18,7 @@ const Login = () => {
         e.preventDefault();
         try {
             await login(username, password);
+            toast.success('Welcome back!');
             navigate('/');
         } catch (err) {
             setError('Invalid username or password');
@@ -26,6 +28,7 @@ const Login = () => {
     const handleGoogleSuccess = async (credentialResponse) => {
         try {
             await loginWithGoogle(credentialResponse.credential);
+            toast.success('Google login successful');
             navigate('/');
         } catch (err) {
             setError('Google login failed');
